@@ -582,7 +582,10 @@ if (PKG_CONFIG_FOUND)
   # custom bullet2.82.pc file
   find_package(BULLET CONFIG 2.82)
   if (NOT BULLET_FOUND)
-     pkg_check_modules(BULLET bullet2.82>=2.82)
+    pkg_check_modules(BULLET bullet>=2.82)
+  endif()
+  if (NOT BULLET_FOUND)    
+    pkg_check_modules(BULLET bullet2.82>=2.82)
   endif()
 
   if (BULLET_FOUND)

@@ -19,8 +19,6 @@ jobs:
         include:
         - arch: x64
         - arch: x86
-    env:
-      arch: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v3
 
@@ -31,9 +29,9 @@ jobs:
           key: windows-${{ matrix.arch }}-${{ hashFiles('.github\workflows\windows.yml') }}
 
       - name: Setup msbuild
-        uses: microsoft/setup-msbuild@v1
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          msbuild-architecture: ${{ matrix.arch }}
+          arch: ${{ matrix.arch }}
 
       - name: Fix vcpkg
         run: vcpkg.exe integrate remove
@@ -47,19 +45,19 @@ jobs:
         shell: cmd
         run: |
           set VCPKG_BINARY_SOURCES=clear;files,%CD%\deps\vcpkg\cache\windows,readwrite;
-           cmake . -B build ^
-               -DCMAKE_BUILD_TYPE=Release ^
-               -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
-               -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
-               -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
-               -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
-               -DVCPKG_TARGET_TRIPLET=%arch%-windows-release ^
-               -DVCPKG_HOST_TRIPLET=%arch%-windows-release ^
-               -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
-               -DUSE_EXTERNAL_TINYXML=ON ^
-               -DUSE_EXTERNAL_TINYXML2=ON ^
-               -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
-               -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\%arch%-windows-release
+          cmake . -G Ninja -B build ^
+              -DCMAKE_BUILD_TYPE=Release ^
+              -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
+              -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
+              -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
+              -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
+              -DVCPKG_TARGET_TRIPLET=${{ matrix.arch }}-windows-release ^
+              -DVCPKG_HOST_TRIPLET=${{ matrix.arch }}-windows-release ^
+              -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
+              -DUSE_EXTERNAL_TINYXML=ON ^
+              -DUSE_EXTERNAL_TINYXML2=ON ^
+              -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
+              -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\${{ matrix.arch }}-windows-release
 
   build:
     name: ${{ matrix.arch }}-build
@@ -71,8 +69,6 @@ jobs:
         include:
         - arch: x64
         - arch: x86
-    env:
-      arch: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v3
 
@@ -83,9 +79,9 @@ jobs:
           key: windows-${{ matrix.arch }}-${{ hashFiles('.github\workflows\windows.yml') }}
 
       - name: Setup msbuild
-        uses: microsoft/setup-msbuild@v1
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          msbuild-architecture: ${{ matrix.arch }}
+          arch: ${{ matrix.arch }}
 
       - name: Fix vcpkg
         run: vcpkg.exe integrate remove
@@ -99,24 +95,24 @@ jobs:
         shell: cmd
         run: |
           set VCPKG_BINARY_SOURCES=clear;files,%CD%\deps\vcpkg\cache\windows,readwrite;
-           cmake . -B build ^
-               -DCMAKE_BUILD_TYPE=Release ^
-               -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
-               -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
-               -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
-               -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
-               -DVCPKG_TARGET_TRIPLET=%arch%-windows-release ^
-               -DVCPKG_HOST_TRIPLET=%arch%-windows-release ^
-               -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
-               -DUSE_EXTERNAL_TINYXML=ON ^
-               -DUSE_EXTERNAL_TINYXML2=ON ^
-               -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
-               -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\%arch%-windows-release
+          cmake . -G Ninja -B build ^
+              -DCMAKE_BUILD_TYPE=Release ^
+              -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
+              -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
+              -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
+              -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
+              -DVCPKG_TARGET_TRIPLET=${{ matrix.arch }}-windows-release ^
+              -DVCPKG_HOST_TRIPLET=${{ matrix.arch }}-windows-release ^
+              -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
+              -DUSE_EXTERNAL_TINYXML=ON ^
+              -DUSE_EXTERNAL_TINYXML2=ON ^
+              -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
+              -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\${{ matrix.arch }}-windows-release
 
       - name: Build Gazebo
         shell: cmd
         run: |
-          cmake --build build --config Release
+          cmake --build build --config Release -j3
 
       - name: Install Gazebo
         shell: cmd
@@ -127,3 +123,34 @@ jobs:
         shell: cmd
         run: |
           echo compile and run tests here
+
+      - name: Prepare logs on failure
+        if: failure()
+        shell: cmd
+        run: |
+          7z a -t7z -r -mx=9 logs.7z ^
+              vcpkg/buildtrees/*.log ^
+              build/.ninja_log ^
+              build/build.ninja ^
+              build/install_manifest.txt ^
+              build/vcpkg-manifest-install.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows_logs_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
+          path: logs.7z
+
+      - name: Prepare artifacts for deploy
+        if: success()
+        shell: cmd
+        run: |
+          move vcpkg\installed\%arch%-windows-release vcpkg\installed\gazebo
+
+      - name: Upload gazebo
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
+          path: vcpkg\installed\gazebo
