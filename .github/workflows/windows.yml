@@ -19,47 +19,11 @@ jobs:
         include:
         - arch: x64
         - arch: x86
-    env:
-      arch: ${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v3
-
-      - name: Cache dependencies
-        uses: actions/cache@v3
+      - uses: actions/checkout@v3    
+      - uses: .github/workflows/windows-configure@v1
         with:
-          path: deps\vcpkg\cache\windows
-          key: windows-${{ matrix.arch }}-${{ hashFiles('.github\workflows\windows.yml') }}
-
-      - name: Setup msbuild
-        uses: microsoft/setup-msbuild@v1
-        with:
-          msbuild-architecture: ${{ matrix.arch }}
-
-      - name: Fix vcpkg
-        run: vcpkg.exe integrate remove
-
-      - name: Clone vcpkg
-        shell: cmd
-        run: |
-          git clone https://github.com/microsoft/vcpkg/
-
-      - name: Configure Gazebo
-        shell: cmd
-        run: |
-          set VCPKG_BINARY_SOURCES=clear;files,%CD%\deps\vcpkg\cache\windows,readwrite;
-          cmake . -G Ninja -B build ^
-              -DCMAKE_BUILD_TYPE=Release ^
-              -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
-              -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
-              -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
-              -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
-              -DVCPKG_TARGET_TRIPLET=%arch%-windows-release ^
-              -DVCPKG_HOST_TRIPLET=%arch%-windows-release ^
-              -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
-              -DUSE_EXTERNAL_TINYXML=ON ^
-              -DUSE_EXTERNAL_TINYXML2=ON ^
-              -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
-              -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\%arch%-windows-release
+          arch: ${{ matrix.arch }}
 
   build:
     name: ${{ matrix.arch }}-build
@@ -70,48 +34,12 @@ jobs:
       matrix:
         include:
         - arch: x64
-        - arch: x86
-    env:
-      arch: ${{ matrix.arch }}
+        - arch: x86  
     steps:
       - uses: actions/checkout@v3
-
-      - name: Cache dependencies
-        uses: actions/cache@v3
+      - uses: .github/workflows/windows-configure@v1
         with:
-          path: deps\vcpkg\cache\windows
-          key: windows-${{ matrix.arch }}-${{ hashFiles('.github\workflows\windows.yml') }}
-
-      - name: Setup msbuild
-        uses: microsoft/setup-msbuild@v1
-        with:
-          msbuild-architecture: ${{ matrix.arch }}
-
-      - name: Fix vcpkg
-        run: vcpkg.exe integrate remove
-
-      - name: Clone vcpkg
-        shell: cmd
-        run: |
-          git clone https://github.com/microsoft/vcpkg/
-
-      - name: Configure Gazebo
-        shell: cmd
-        run: |
-          set VCPKG_BINARY_SOURCES=clear;files,%CD%\deps\vcpkg\cache\windows,readwrite;
-          cmake . -G Ninja -B build ^
-              -DCMAKE_BUILD_TYPE=Release ^
-              -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
-              -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
-              -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
-              -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
-              -DVCPKG_TARGET_TRIPLET=%arch%-windows-release ^
-              -DVCPKG_HOST_TRIPLET=%arch%-windows-release ^
-              -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
-              -DUSE_EXTERNAL_TINYXML=ON ^
-              -DUSE_EXTERNAL_TINYXML2=ON ^
-              -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
-              -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\%arch%-windows-release
+          arch: ${{ matrix.arch }}
 
       - name: Build Gazebo
         shell: cmd

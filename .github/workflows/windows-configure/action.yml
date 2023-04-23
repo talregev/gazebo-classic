@@ -1,0 +1,156 @@
+name: windows-configure
+description: "Configure gazebo in windows"
+
+inputs:
+  arch:
+    description: 'arch for configure'
+    required: true
+    default: 'x86'
+env:
+  arch: ${{ inputs.arch }}
+runs:
+  using: "composite"
+  steps:
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: deps\vcpkg\cache\windows
+        key: windows-${{ inputs.arch }}-${{ hashFiles('.github\workflows\windows-configure.yml') }}
+
+    - name: Setup msbuild
+      uses: microsoft/setup-msbuild@v1
+      with:
+        msbuild-architecture: ${{ inputs.arch }}
+
+    - name: Fix vcpkg
+      run: vcpkg.exe integrate remove
+
+    - name: Clone vcpkg
+      shell: cmd
+      run: |
+        git clone https://github.com/microsoft/vcpkg/
+
+    - name: Configure Gazebo
+      shell: cmd
+      run: |
+        set VCPKG_BINARY_SOURCES=clear;files,%CD%\deps\vcpkg\cache\windows,readwrite;
+        cmake . -G Ninja -B build ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
+            -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
+            -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
+            -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
+            -DVCPKG_TARGET_TRIPLET=%arch%-windows-release ^
+            -DVCPKG_HOST_TRIPLET=%arch%-windows-release ^
+            -DVCPKG_INSTALL_OPTIONS=--clean-after-build ^
+            -DUSE_EXTERNAL_TINYXML=ON ^
+            -DUSE_EXTERNAL_TINYXML2=ON ^
+            -DUSE_EXTERNAL_TINY_PROCESS_LIBRARY=ON ^
+            -DCMAKE_INSTALL_PREFIX=%CD%\vcpkg\installed\%arch%-windows-release
+
+    - name: Build Gazebo
+      shell: cmd
+      run: |
+        cmake --build build --config Release
+
+    - name: Install Gazebo
+      shell: cmd
+      run: |
+        cmake --install build --config Release
+        
+    - name: Tests suite compilation
+      shell: cmd
+      run: |
+        echo compile and run tests here
+
+    - name: Prepare logs on failure
+      if: failure()
+      shell: cmd
+      run: |
+        7z a -t7z -r -mx=9 logs.7z ^
+            vcpkg/buildtrees/*.log ^
+            build/.ninja_log ^
+            build/build.ninja ^
+            build/install_manifest.txt ^
+            build/vcpkg-manifest-install.log
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+
+jobs:
+  configure:
+    name: ${{ matrix.arch }}-configure
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x64
+        - arch: x86
+    steps:
+      - uses: actions/Windows@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+  build:
+    name: ${{ matrix.arch }}-build
+    runs-on: windows-latest
+    needs: configure
+    strategy:
+      fail-fast: false  
+      matrix:
+        include:
+        - arch: x64
+        - arch: x86  
+    steps:
+      - uses: actions/Windows@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build Gazebo
+        shell: cmd
+        run: |
+          cmake --build build --config Release
+
+      - name: Install Gazebo
+        shell: cmd
+        run: |
+          cmake --install build --config Release
+          
+      - name: Tests suite compilation
+        shell: cmd
+        run: |
+          echo compile and run tests here
+
+      - name: Prepare logs on failure
+        if: failure()
+        shell: cmd
+        run: |
+          7z a -t7z -r -mx=9 logs.7z ^
+              vcpkg/buildtrees/*.log ^
+              build/.ninja_log ^
+              build/build.ninja ^
+              build/install_manifest.txt ^
+              build/vcpkg-manifest-install.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows_logs_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
+          path: logs.7z
+
+      - name: Prepare artifacts for deploy
+        if: success()
+        shell: cmd
+        run: |
+          move vcpkg\installed\%arch%-windows-release vcpkg\installed\gazebo
+
+      - name: Upload gazebo
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
+          path: vcpkg\installed\gazebo
