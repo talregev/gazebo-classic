@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  configure:
+  ${{ github.job.matrix.arch }}-configure:
     name: ${{ matrix.arch }}-configure
     runs-on: windows-latest
     strategy:
@@ -62,7 +62,7 @@ jobs:
   build:
     name: ${{ matrix.arch }}-build
     runs-on: windows-latest
-    needs: configure
+    needs: ${{ matrix.arch }}-configure
     strategy:
       fail-fast: false  
       matrix:
