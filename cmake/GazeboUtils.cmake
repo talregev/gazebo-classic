@@ -146,13 +146,13 @@ endmacro ()
 #################################################
 macro (gz_setup_unix)
     # Using dynamic linking in UNIX by default
-    set(BUILD_SHARED_LIBS TRUE)
+    # set(BUILD_SHARED_LIBS TRUE)
 endmacro()
 
 #################################################
 macro (gz_setup_windows)
     # Using dynamic linking in Windows by default
-    set(BUILD_SHARED_LIBS TRUE)
+    # set(BUILD_SHARED_LIBS TRUE)
     add_definitions(-DWIN32_LEAN_AND_MEAN)
 
     # Need for M_PI constant

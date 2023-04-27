@@ -31,26 +31,29 @@ endif()
 
 ########################################
 # The Google Protobuf library for message generation + serialization
-find_package(Protobuf REQUIRED)
-if (NOT PROTOBUF_FOUND)
-  BUILD_ERROR ("Missing: Google Protobuf (libprotobuf-dev)")
-endif()
-if (NOT PROTOBUF_PROTOC_EXECUTABLE)
-  BUILD_ERROR ("Missing: Google Protobuf Compiler (protobuf-compiler)")
-endif()
-if (NOT PROTOBUF_PROTOC_LIBRARY)
-  BUILD_ERROR ("Missing: Google Protobuf Compiler Library (libprotoc-dev)")
-endif()
-
-set(PKG_PROTOBUF_LIBRARY protobuf::libprotobuf protobuf::libprotobuf-lite)
-set(PKG_PROTOBUF_PROTOC_LIBRARY protobuf::libprotoc)
-
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-  set (GZ_PROTOBUF_LIBRARY ${PROTOBUF_LIBRARY_DEBUG} ${PKG_PROTOBUF_LIBRARY})
-  set (GZ_PROTOBUF_PROTOC_LIBRARY ${PROTOBUF_PROTOC_LIBRARY_DEBUG} ${PKG_PROTOBUF_PROTOC_LIBRARY})
+find_package(protobuf CONFIG)
+if (NOT "${PROTOBUF_LIBRARY}" STREQUAL "")
+  message (STATUS "Found protobuf")
+  set (GZ_PROTOBUF_LIBRARY protobuf::libprotobuf protobuf::libprotobuf-lite)
+  set (GZ_PROTOBUF_PROTOC_LIBRARY protobuf::libprotoc)
 else()
-  set (GZ_PROTOBUF_LIBRARY ${PROTOBUF_LIBRARY} ${PKG_PROTOBUF_LIBRARY})
-  set (GZ_PROTOBUF_PROTOC_LIBRARY ${PROTOBUF_PROTOC_LIBRARY} ${PKG_PROTOBUF_PROTOC_LIBRARY})
+  find_package(Protobuf REQUIRED)
+  if (NOT PROTOBUF_FOUND)
+    BUILD_ERROR ("Missing: Google Protobuf (libprotobuf-dev)")
+  endif()
+  if (NOT PROTOBUF_PROTOC_EXECUTABLE)
+    BUILD_ERROR ("Missing: Google Protobuf Compiler (protobuf-compiler)")
+  endif()
+  if (NOT PROTOBUF_PROTOC_LIBRARY)
+    BUILD_ERROR ("Missing: Google Protobuf Compiler Library (libprotoc-dev)")
+  endif()
+  if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    set (GZ_PROTOBUF_LIBRARY ${PROTOBUF_LIBRARY_DEBUG} ${PKG_PROTOBUF_LIBRARY})
+    set (GZ_PROTOBUF_PROTOC_LIBRARY ${PROTOBUF_PROTOC_LIBRARY_DEBUG} ${PKG_PROTOBUF_PROTOC_LIBRARY})
+  else()
+    set (GZ_PROTOBUF_LIBRARY ${PROTOBUF_LIBRARY})
+    set (GZ_PROTOBUF_PROTOC_LIBRARY ${PROTOBUF_PROTOC_LIBRARY})
+  endif()
 endif()
 
 ########################################
@@ -59,6 +62,7 @@ if (NOT OPENGL_FOUND)
   BUILD_ERROR ("Missing: OpenGL")
   set (HAVE_OPENGL FALSE)
 else ()
+#  add_compile_definitions(GL_GLEXT_LEGACY GLX_GLXEXT_LEGACY)
  if (OPENGL_INCLUDE_DIR)
    APPEND_TO_CACHED_LIST(gazeboserver_include_dirs
                          ${gazeboserver_include_dirs_desc}
@@ -83,12 +87,15 @@ else ()
 endif ()
 
 ########################################
-find_package(HDF5 COMPONENTS C CXX)
-
+find_package(HDF5 NAMES hdf5 CONFIG COMPONENTS C CXX)
 if (NOT HDF5_FOUND)
-  BUILD_WARNING("HDF5 not found")
-else ()
+  find_package(HDF5 COMPONENTS C CXX)
+endif()
+
+if (HDF5_FOUND)
   message(STATUS "HDF5 Found")
+else ()
+  BUILD_WARNING("HDF5 not found")
 endif ()
 
 ########################################
@@ -147,9 +154,12 @@ if (PKG_CONFIG_FOUND)
   # Find Simbody
   set(SimTK_INSTALL_DIR ${SimTK_INSTALL_PREFIX})
   #list(APPEND CMAKE_MODULE_PATH ${SimTK_INSTALL_PREFIX}/share/cmake)
-  find_package(Simbody)
-  if (Simbody_FOUND)
-    message (STATUS "Looking for Simbody - found")
+  find_package(Simbody CONFIG)
+  if (Simbody_FOUND)  
+    if ("${Simbody_LIBRARIES}" STREQUAL "" OR "${Simbody_LIBRARIES}" STREQUAL "Simbody_LIBRARIES-NOTFOUND")
+      set(Simbody_LIBRARIES SimTKmath SimTKcommon SimTKsimbody)
+    endif()
+    message (STATUS "Simbody_LIBRARIES: ${Simbody_LIBRARIES}")
     set (HAVE_SIMBODY TRUE)
   else()
     message (STATUS "Looking for Simbody - not found")
@@ -405,13 +415,14 @@ if (PKG_CONFIG_FOUND)
     endif()
   endif()
 
-  if (NOT OGRE_FOUND)
+  if (NOT OGRE_FOUND OR _pkgconfig_failed)
     # Workaround for CMake bug https://gitlab.kitware.com/cmake/cmake/issues/17135,
     # that prevents to successfully run a find_package(<package>) call if before there
     # was a failed call to pkg_check_modules(<package> <package>)
     unset(OGRE_FOUND CACHE)
     # If OGRE was not found, try with the standard find_package(OGRE)
-    find_package(OGRE COMPONENTS RTShaderSystem Terrain Overlay Paging)
+    message(STATUS "find_package(OGRE ...)")
+    find_package(OGRE CONFIG COMPONENTS RTShaderSystem Terrain Overlay Paging)
     # Add each component include directories to OGRE_INCLUDE_DIRS because
     # some OGRE components headers include without prefix headers contained
     # in other components (see http://www.ogre3d.org/forums/viewtopic.php?f=2&t=73222)
@@ -683,6 +694,7 @@ endif ()
 
 ########################################
 # Find gdal
+find_package(GDAL CONFIG)
 include (FindGDAL)
 if (NOT GDAL_FOUND)
   message (STATUS "Looking for libgdal - not found")

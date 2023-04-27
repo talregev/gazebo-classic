@@ -1,4 +1,4 @@
-name: Linux
+name: 🐧 Linux
 on:
   push:
     branches: [ gazebo11 ]
@@ -10,48 +10,88 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: linux-build
+  config:
+    name: x64-config
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
+      fail-fast: false  
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+
+      - name: Config Gazebo
+        uses: ./.github/workflows/linux-config/
+
+      - name: Prepare logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          7z a -t7z -r -mx=9 logs.7z \
+              vcpkg/buildtrees/*.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
         with:
-          fetch-depth: 2
+          name: linux_logs_x64_${{github.event.pull_request.head.sha}}
+          path: logs.7z
 
-      - name: Install Required Dependencies
-        run: |
-          sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
-          wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
-          sudo apt-get update
-          wget https://raw.githubusercontent.com/ignition-tooling/release-tools/master/jenkins-scripts/lib/dependencies_archive.sh -O /tmp/dependencies.sh
-          GAZEBO_MAJOR_VERSION=11 ROS_DISTRO=dummy . /tmp/dependencies.sh
-          echo $BASE_DEPENDENCIES $GAZEBO_BASE_DEPENDENCIES | tr -d '\\' | xargs sudo apt-get -y install
+  build:
+    name: x64-build
+    needs: config
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  
+    steps:
+      - uses: actions/checkout@v3     
 
-      - name: Optional Physics Engines
-        run: |
-          sudo apt-add-repository ppa:dartsim
-          sudo apt-get update
-          sudo apt-get install libdart6-dev
-          sudo apt-get install libdart6-utils-urdf-dev
-
-      - name: Optional Dependencies
-        run: |
-          sudo apt-get install xsltproc
-
-      - name: Man Page Support
-        run: |
-          sudo apt-get install ruby-ronn
-          
+      - name: Config Gazebo
+        uses: ./.github/workflows/linux-config/
+              
       - name: Build Gazebo
+        shell: bash
         run: |
-          mkdir build
-          cd build
-          cmake ../
-          make -j $(nproc --all)
+          export proc=$(nproc)
+          echo proc=$proc
+          cmake --build build --config Release -j $proc
+
+      - name: Install Gazebo
+        shell: bash
+        run: |
+          cmake --install build --config Release
           
-      - name: Optional tests suite compilation
+      - name: Tests suite compilation
+        shell: bash
         run: |
-          cd build
-          make tests 
+          echo compile and run tests here
+
+      - name: Prepare logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          7z a -t7z -r -mx=9 logs.7z \
+              vcpkg/buildtrees/*.log \
+              build/.ninja_log \
+              build/build.ninja \
+              build/install_manifest.txt \
+              build/vcpkg-manifest-install.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux_logs_x64_${{github.event.pull_request.head.sha}}
+          path: logs.7z
+
+      - name: Prepare artifacts for deploy
+        if: success()
+        shell: bash
+        run: |
+          move vcpkg/installed/x64-linux-release vcpkg/installed/gazebo
+          7z a -t7z -r gazebo.7z ./vcpkg/installed/gazebo/
+
+      - name: Upload gazebo
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: gazebo_linux_x64_${{github.event.pull_request.head.sha}}
+          path: gazebo.7z

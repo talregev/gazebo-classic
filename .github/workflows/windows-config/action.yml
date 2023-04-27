@@ -3,7 +3,10 @@ description: configure windows
 inputs:
   arch:
     required: true
-    type: string
+    type: choice
+    options: 
+    - x86
+    - x64
 
 runs:
   using: "composite"
@@ -35,7 +38,7 @@ runs:
         cmake . -G Ninja -B build ^
             -DCMAKE_BUILD_TYPE=Release ^
             -DCMAKE_TOOLCHAIN_FILE=vcpkg\scripts\buildsystems\vcpkg.cmake ^
-            -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifests\windows ^
+            -DVCPKG_MANIFEST_DIR=deps\vcpkg\manifest ^
             -DVCPKG_OVERLAY_TRIPLETS=deps\vcpkg\triplets ^
             -DVCPKG_INSTALLED_DIR=%CD%\vcpkg\installed ^
             -DVCPKG_TARGET_TRIPLET=${{ inputs.arch }}-windows-release ^
