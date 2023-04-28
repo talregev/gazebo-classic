@@ -1,4 +1,4 @@
-name: Windows
+name: 🪟 Windows
 on:
   push:
     branches: [ gazebo11 ]
@@ -26,6 +26,20 @@ jobs:
         uses: ./.github/workflows/windows-config/
         with:
           arch: ${{ matrix.arch }}
+
+      - name: Prepare logs on failure
+        if: failure()
+        shell: cmd
+        run: |
+          7z a -t7z -r -mx=9 logs.7z ^
+              vcpkg/buildtrees/*.log
+              
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows_logs_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
+          path: logs.7z
 
   build:
     name: ${{ matrix.arch }}-build
