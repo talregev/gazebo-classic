@@ -1,4 +1,4 @@
-name: 🐧 Linux
+name: 🪟 Windows
 on:
   push:
     branches: [ gazebo11 ]
@@ -11,87 +11,99 @@ concurrency:
 
 jobs:
   config:
-    name: x64-config
-    runs-on: ubuntu-latest
+    name: ${{ matrix.arch }}-config
+    runs-on: windows-latest
     strategy:
       fail-fast: false  
+      matrix:
+        include:
+        - arch: x64
+        - arch: x86
     steps:
       - uses: actions/checkout@v3
 
       - name: Config Gazebo
-        uses: ./.github/workflows/linux-config/
+        uses: ./.github/workflows/windows-config/
+        with:
+          arch: ${{ matrix.arch }}
 
       - name: Prepare logs on failure
         if: failure()
-        shell: bash
+        shell: cmd
         run: |
-          7z a -t7z -r -mx=9 logs.7z \
+          7z a -t7z -r -mx=9 logs.7z ^
               vcpkg/buildtrees/*.log
-
+              
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v3
         with:
-          name: linux_logs_x64_${{github.event.pull_request.head.sha}}
+          name: windows_logs_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
           path: logs.7z
 
   build:
-    name: x64-build
+    name: ${{ matrix.arch }}-build
     needs: config
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     strategy:
       fail-fast: false  
+      matrix:
+        include:
+        - arch: x64
+        - arch: x86
     steps:
       - uses: actions/checkout@v3     
 
       - name: Config Gazebo
-        uses: ./.github/workflows/linux-config/
+        uses: ./.github/workflows/windows-config/
+        with:
+          arch: ${{ matrix.arch }}
               
       - name: Build Gazebo
-        shell: bash
+        shell: cmd
         run: |
-          export proc=$(nproc)
-          echo proc=$proc
-          cmake --build build --config Release -j $proc
+          set /a proc=%NUMBER_OF_PROCESSORS%
+          echo proc=%proc%
+          cmake --build build --config Release -j %proc%
 
       - name: Install Gazebo
-        shell: bash
+        shell: cmd
         run: |
           cmake --install build --config Release
           
       - name: Tests suite compilation
-        shell: bash
+        shell: cmd
         run: |
           echo compile and run tests here
 
       - name: Prepare logs on failure
         if: failure()
-        shell: bash
+        shell: cmd
         run: |
-          7z a -t7z -r -mx=9 logs.7z \
-              vcpkg/buildtrees/*.log \
-              build/.ninja_log \
-              build/build.ninja \
-              build/install_manifest.txt \
+          7z a -t7z -r -mx=9 logs.7z ^
+              vcpkg/buildtrees/*.log ^
+              build/.ninja_log ^
+              build/build.ninja ^
+              build/install_manifest.txt ^
               build/vcpkg-manifest-install.log
 
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v3
         with:
-          name: linux_logs_x64_${{github.event.pull_request.head.sha}}
+          name: windows_logs_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
           path: logs.7z
 
       - name: Prepare artifacts for deploy
         if: success()
-        shell: bash
+        shell: cmd
         run: |
-          move vcpkg/installed/x64-linux-release vcpkg/installed/gazebo
+          move vcpkg\installed\${{ matrix.arch }}-windows-release vcpkg\installed\gazebo
           7z a -t7z -r gazebo.7z ./vcpkg/installed/gazebo/
 
       - name: Upload gazebo
         if: success()
         uses: actions/upload-artifact@v3
         with:
-          name: gazebo_linux_x64_${{github.event.pull_request.head.sha}}
+          name: gazebo_windows_${{matrix.arch}}_${{github.event.pull_request.head.sha}}
           path: gazebo.7z
